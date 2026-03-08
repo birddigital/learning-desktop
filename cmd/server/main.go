@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/birddigital/learning-desktop/internal/voice"
-	"github.com/birddigital/learning-desktop/pkg/chat"
+	"github.com/birddigital/htmx-r/components"
+	"github.com/birddigital/htmx-r/pkg/voice"
 	"github.com/google/uuid"
 )
 
@@ -30,8 +30,8 @@ func main() {
 	voiceHandler := voice.NewVoiceHandler(voiceService)
 	voiceHandler.RegisterRoutes(mux)
 
-	// Static file server
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+	// Static file server (serve from htmx-r)
+	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("../htmx-r/static"))))
 
 	// Chat endpoints
 	mux.HandleFunc("/", handleIndex)
@@ -80,7 +80,7 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sessionID := getOrCreateSessionID(r)
-	chatComponent := chat.NewChat(chat.ChatProps{
+	chatComponent := components.NewChat(components.ChatProps{
 		SessionID:     sessionID,
 		Placeholder:   "Type your message or use voice input...",
 		WelcomeTitle:  "Get Ahead of AI",
@@ -117,7 +117,7 @@ func handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create user message
-	userMsg := chat.ChatMessage{
+	userMsg := components.ChatMessage{
 		ID:        uuid.New().String(),
 		Role:      "user",
 		Content:   message,
@@ -126,18 +126,18 @@ func handleChat(w http.ResponseWriter, r *http.Request) {
 
 	// Render user message
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	chat.RenderMessageHTML(w, userMsg)
+	components.RenderMessageHTML(w, userMsg)
 
 	// TODO: Generate AI response
 	// For now, echo a simple response
-	assistantMsg := chat.ChatMessage{
+	assistantMsg := components.ChatMessage{
 		ID:        uuid.New().String(),
 		Role:      "assistant",
 		Content:   "I understand you're interested in: \"" + message + "\". Let me help you learn more about this topic.",
 		Timestamp: time.Now(),
 	}
 
-	chat.RenderMessageHTML(w, assistantMsg)
+	components.RenderMessageHTML(w, assistantMsg)
 }
 
 // handleClear clears the chat session
@@ -149,7 +149,7 @@ func handleClear(w http.ResponseWriter, r *http.Request) {
 
 	// Re-render the main page with new session
 	sessionID := uuid.New().String()
-	chatComponent := chat.NewChat(chat.ChatProps{
+	chatComponent := components.NewChat(components.ChatProps{
 		SessionID:     sessionID,
 		Placeholder:   "Type your message or use voice input...",
 		WelcomeTitle:  "Get Ahead of AI",
