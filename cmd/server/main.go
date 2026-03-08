@@ -3,10 +3,8 @@ package main
 
 import (
 	"context"
-	"embed"
 	"flag"
 	"fmt"
-	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -18,9 +16,6 @@ import (
 	"github.com/birddigital/learning-desktop/pkg/chat"
 	"github.com/google/uuid"
 )
-
-//go:embed ../../static
-var staticFiles embed.FS
 
 func main() {
 	// Configuration
@@ -36,11 +31,7 @@ func main() {
 	voiceHandler.RegisterRoutes(mux)
 
 	// Static file server
-	staticFS, err := fs.Sub(staticFiles, "static")
-	if err != nil {
-		log.Fatalf("Failed to create static FS: %v", err)
-	}
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
 	// Chat endpoints
 	mux.HandleFunc("/", handleIndex)

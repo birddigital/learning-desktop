@@ -3,6 +3,7 @@
 package voice
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -116,7 +117,7 @@ func (s *VoiceService) ProcessStudentInput(ctx context.Context, audio []byte) (*
 		return nil, nil, fmt.Errorf("no speech detected")
 	}
 
-	result, err := s.stt.Transcribe(ctx, audio)
+	result, err := s.stt.Transcribe(ctx, bytes.NewReader(audio))
 	if err != nil {
 		return nil, nil, fmt.Errorf("transcription failed: %w", err)
 	}
@@ -198,7 +199,7 @@ func (s *VoiceService) detectFillers(text string) []FillerWord {
 	fillerTypes := []string{" um ", " uh ", " like ", " you know "}
 	words := strings.Split(text, " ")
 
-	for i, word := range words {
+	for _, word := range words {
 		wordLower := strings.ToLower(word)
 		for _, filler := range fillerTypes {
 			if strings.Contains(" "+wordLower+" ", filler) {
