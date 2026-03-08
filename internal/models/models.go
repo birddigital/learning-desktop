@@ -382,3 +382,205 @@ type SpeechPace struct {
 	WordsPerMinute int    `json:"words_per_minute"`
 	Label          string `json:"label"` // "slow" | "normal" | "fast"
 }
+
+// ============================================================================
+// GOALS & COMMITMENTS
+// ============================================================================
+
+// Goal represents a student's declared objective with a deadline
+type Goal struct {
+	ID          uuid.UUID  `db:"id" json:"id"`
+	StudentID   uuid.UUID  `db:"student_id" json:"student_id"`
+	TenantID    uuid.UUID  `db:"tenant_id" json:"tenant_id"`
+	Title       string     `db:"title" json:"title"`
+	Description string     `db:"description" json:"description"`
+	TargetDate  time.Time  `db:"target_date" json:"target_date"`
+	
+	// AI planning output
+	CourseID    *uuid.UUID `db:"course_id" json:"course_id,omitempty"`
+	Confidence  float64    `db:"confidence" json:"confidence"` // AI's confidence in achievability (0-1)
+	
+	// Status tracking
+	Status      GoalStatus `db:"status" json:"status"`
+	Progress    float64    `db:"progress" json:"progress"` // 0-100
+	
+	// Timestamps
+	CreatedAt   time.Time  `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time  `db:"updated_at" json:"updated_at"`
+	CompletedAt *time.Time `db:"completed_at" json:"completed_at,omitempty"`
+	AbandonedAt *time.Time `db:"abandoned_at" json:"abandoned_at,omitempty"`
+	
+	// Relations
+	Milestones  []Milestone `db:"-" json:"milestones,omitempty"`
+	Insights    []InsightSnapshot `db:"-" json:"insights,omitempty"`
+}
+
+// GoalStatus represents the state of a goal
+type GoalStatus string
+
+const (
+	GoalStatusActive     GoalStatus = "active"
+	GoalStatusOnTrack    GoalStatus = "on_track"
+	GoalStatusAtRisk     GoalStatus = "at_risk"
+	GoalStatusBehind     GoalStatus = "behind"
+	GoalStatusCompleted  GoalStatus = "completed"
+	GoalStatusAbandoned  GoalStatus = "abandoned"
+)
+
+// Milestone represents a checkpoint on the path to a goal
+type Milestone struct {
+	ID             uuid.UUID       `db:"id" json:"id"`
+	GoalID         uuid.UUID       `db:"goal_id" json:"goal_id"`
+	OrderIndex     int             `db:"order_index" json:"order_index"`
+	Title          string          `db:"title" json:"title"`
+	Description    string          `db:"description" json:"description"`
+	TargetDate     time.Time       `db:"target_date" json:"target_date"`
+	Dependencies   []uuid.UUID     `db:"dependencies" json:"dependencies"`
+	
+	// Completion tracking
+	LessonID       *uuid.UUID      `db:"lesson_id" json:"lesson_id,omitempty"`
+	CompletedAt    *time.Time      `db:"completed_at" json:"completed_at,omitempty"`
+	
+	// Status
+	Status         MilestoneStatus `db:"status" json:"status"`
+	
+	CreatedAt      time.Time       `db:"created_at" json:"created_at"`
+}
+
+// MilestoneStatus represents milestone completion state
+type MilestoneStatus string
+
+const (
+	MilestoneStatusPending    MilestoneStatus = "pending"
+	MilestoneStatusInProgress MilestoneStatus = "in_progress"
+	MilestoneStatusCompleted  MilestoneStatus = "completed"
+	MilestoneStatusSkipped    MilestoneStatus = "skipped"
+)
+
+// InsightSnapshot stores historical insight data for a goal
+type InsightSnapshot struct {
+	ID              uuid.UUID  `db:"id" json:"id"`
+	GoalID          uuid.UUID  `db:"goal_id" json:"goal_id"`
+	RecordedAt      time.Time `db:"recorded_at" json:"recorded_at"`
+	
+	// Snapshot data
+	OnTrack         bool      `db:"on_track" json:"on_track"`
+	ProgressPercent float64   `db:"progress_percent" json:"progress_percent"`
+	ProjectedDate   *time.Time `db:"projected_date" json:"projected_date,omitempty"`
+	MissedBy        *int       `db:"missed_by_days" json:"missed_by_days,omitempty"`
+	
+	// Metrics
+	Velocity        float64   `db:"velocity" json:"velocity"` // progress per day
+	RequiredVelocity float64   `db:"required_velocity" json:"required_velocity"`
+	
+	// Recommendation at time of snapshot
+	Recommendation string    `db:"recommendation" json:"recommendation"`
+	Urgency         string    `db:"urgency" json:"urgency"`
+}
+
+// ============================================================================
+// SCHEDULING & COMMUNICATIONS
+// ============================================================================
+
+// ScheduleBlock represents a planned time slot for learning
+type ScheduleBlock struct {
+	ID          uuid.UUID     `db:"id" json:"id"`
+	StudentID   uuid.UUID     `db:"student_id" json:"student_id"`
+	GoalID      *uuid.UUID    `db:"goal_id" json:"goal_id,omitempty"`
+	
+	// When
+	ScheduledAt time.Time     `db:"scheduled_at" json:"scheduled_at"`
+	Duration    int           `db:"duration_minutes" json:"duration_minutes"`
+	
+	// What
+	Title       string        `db:"title" json:"title"`
+	Type        BlockType     `db:"type" json:"type"`
+	LessonID    *uuid.UUID    `db:"lesson_id" json:"lesson_id,omitempty"`
+	
+	// Status
+	Status      BlockStatus   `db:"status" json:"status"`
+	CompletedAt *time.Time    `db:"completed_at" json:"completed_at,omitempty"`
+	
+	// Reminder settings
+	Reminder    bool          `db:"reminder" json:"reminder"`
+	RemindedAt  *time.Time    `db:"reminded_at" json:"reminded_at,omitempty"`
+	
+	CreatedAt   time.Time     `db:"created_at" json:"created_at"`
+}
+
+// BlockType represents the type of scheduled block
+type BlockType string
+
+const (
+	BlockTypeLesson    BlockType = "lesson"
+	BlockTypeQuiz      BlockType = "quiz"
+	BlockTypeReview    BlockType = "review"
+	BlockTypeProject   BlockType = "project"
+	BlockTypeOther     BlockType = "other"
+)
+
+// BlockStatus represents whether a scheduled block was completed
+type BlockStatus string
+
+const (
+	BlockStatusScheduled  BlockStatus = "scheduled"
+	BlockStatusCompleted  BlockStatus = "completed"
+	BlockStatusMissed     BlockStatus = "missed"
+	BlockStatusSkipped    BlockStatus = "skipped"
+)
+
+// Communication represents an outbound message to a student
+type Communication struct {
+	ID           uuid.UUID      `db:"id" json:"id"`
+	StudentID    uuid.UUID      `db:"student_id" json:"student_id"`
+	GoalID       *uuid.UUID     `db:"goal_id" json:"goal_id,omitempty"`
+	
+	Type         CommType       `db:"type" json:"type"`
+	Channel      CommChannel    `db:"channel" json:"channel"`
+	Subject      string         `db:"subject" json:"subject"`
+	Body         string         `db:"body" json:"body"`
+	
+	ScheduledAt  time.Time      `db:"scheduled_at" json:"scheduled_at"`
+	SentAt       *time.Time     `db:"sent_at" json:"sent_at,omitempty"`
+	DeliveredAt  *time.Time     `db:"delivered_at" json:"delivered_at,omitempty"`
+	
+	// Tracking
+	Status       CommStatus     `db:"status" json:"status"`
+	OpenedAt     *time.Time     `db:"opened_at" json:"opened_at,omitempty"`
+	ClickedAt    *time.Time     `db:"clicked_at" json:"clicked_at,omitempty"`
+	
+	CreatedAt    time.Time      `db:"created_at" json:"created_at"`
+}
+
+// CommType represents the type of communication
+type CommType string
+
+const (
+	CommTypeReminder      CommType = "reminder"
+	CommTypeEscalation    CommType = "escalation"
+	CommTypeUpdate        CommType = "update"
+	CommTypeCelebration   CommType = "celebration"
+	CommTypeNudge         CommType = "nudge"
+)
+
+// CommChannel represents where the message is sent
+type CommChannel string
+
+const (
+	CommChannelInApp    CommChannel = "in_app"
+	CommChannelEmail    CommChannel = "email"
+	CommChannelSMS      CommChannel = "sms"
+	CommChannelPush     CommChannel = "push"
+)
+
+// CommStatus represents delivery status
+type CommStatus string
+
+const (
+	CommStatusPending    CommStatus = "pending"
+	CommStatusSent       CommStatus = "sent"
+	CommStatusDelivered  CommStatus = "delivered"
+	CommStatusOpened     CommStatus = "opened"
+	CommStatusClicked    CommStatus = "clicked"
+	CommStatusFailed     CommStatus = "failed"
+)
