@@ -3,9 +3,7 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/birddigital/learning-desktop/internal/models"

@@ -37,7 +37,7 @@ package skill
 // ============================================================================
 
 // Example Tree: Prompt Engineering
-const ExamplePromptTree = TreeDefinition{
+var ExamplePromptTree = TreeDefinition{
 	Slug:        "prompt-engineering",
 	Title:       "Prompt Engineering",
 	Description: "Master the art of communicating with AI effectively",
@@ -113,7 +113,7 @@ const ExamplePromptTree = TreeDefinition{
 }
 
 // Example Tree: AI Concepts
-const ExampleConceptsTree = TreeDefinition{
+var ExampleConceptsTree = TreeDefinition{
 	Slug:        "ai-concepts",
 	Title:       "AI Concepts & Logic",
 	Description: "Understand how AI actually works under the hood",
@@ -189,7 +189,7 @@ const ExampleConceptsTree = TreeDefinition{
 }
 
 // Example Tree: Models & Data
-const ExampleModelsTree = TreeDefinition{
+var ExampleModelsTree = TreeDefinition{
 	Slug:        "models-data",
 	Title:       "Models & Data",
 	Description: "Work with AI models and data effectively",

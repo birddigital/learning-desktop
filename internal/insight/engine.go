@@ -530,6 +530,7 @@ func (e *Engine) calculateLongestStreak(events []models.ProgressEvent) int {
 		if len(sortedDates) == 0 {
 			continue
 		}
+		_ = d // Date tracked for streak calculation
 		current++
 		if current > longest {
 			longest = current

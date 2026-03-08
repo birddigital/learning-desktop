@@ -47,6 +47,16 @@ const (
 	CategoryCareer         SkillCategory = "career"
 )
 
+// SkillLevel represents difficulty/depth
+type SkillLevel string
+
+const (
+	LevelBeginner     SkillLevel = "beginner"
+	LevelIntermediate SkillLevel = "intermediate"
+	LevelAdvanced     SkillLevel = "advanced"
+	LevelExpert       SkillLevel = "expert"
+)
+
 // Node represents a single skill in the tree
 type Node struct {
 	ID           uuid.UUID     `db:"id" json:"id"`
