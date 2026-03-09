@@ -3,33 +3,46 @@
 package skill
 
 // ============================================================================
-// EXAMPLE SKILL TREES
+// LEARNING DESKTOP SKILL TREES
 // ============================================================================
 //
-// These are example skill tree definitions for the "Get Ahead of AI" course.
-// In production, these would be stored in the database.
+// Complete skill tree curriculum for young men 13-17:
+// - Character & Manhood (🦁)
+// - Student Skills (📚)
+// - Entrepreneurship (💼)
+// - Prompt Engineering (💬)
+// - AI Concepts (🧠)
+// - Models & Data (🗄️)
+//
+// PHILOSOPHY: Competency-Based Progression
+// -------------------------------------------
+// The only way to earn a skill is to DEMONSTRATE it.
+// No participation trophies. No "complete the lesson to unlock."
+// You prove you can do it, or you don't unlock it.
+//
+// Assessment methods vary by skill type:
+// - Technical: Code review, project demo, quiz
+// - Character: Peer validation, mentor observation, real-world action
+// - Student: Teaching others, practical application
+// - Entrepreneurship: Revenue, customers served, problems solved
 //
 // Visualization:
 //
-//                    ┌─────────────────────────┐
-//                    │     AI FUNDAMENTALS      │
-//                    │    Master all 6 trees    │
-//                    └───────────┬─────────────┘
-//                                │
-//      ┌─────────────────────────┼─────────────────────────┐
-//      │                         │                         │
-//  ┌───▼────┐              ┌────▼─────┐              ┌───▼────┐
-//  │ PROMPT │              │  CONCEPTS│              │ MODELS │
-//  │ENGINE  │              │   & LOGIC│              │&  DATA │
-//  └───┬────┘              └────┬─────┘              └───┬────┘
-//      │                         │                         │
-//   ┌───▼────────┐       ┌─────▼───────┐       ┌─────────▼──┐
-//   │Basic Prompt│       │  How LLMs  │       │  Vector   │
-//   │  Writing   │       │   Work     │       │ Databases │
-//   └────────────┘       └─────────────┘       └───────────┘
+//                    ┌─────────────────────────────────┐
+//                    │     THE COMPLETE YOUNG MAN       │
+//                    │    Master All 6 Skill Trees      │
+//                    └─────────────┬───────────────────┘
+//                                  │
+//    ┌─────────────┬───────────────┼───────────────┬─────────────┐
+//    │             │               │               │             │
+//  ┌─▼───────┐ ┌──▼────────┐ ┌───▼────────┐ ┌───▼────────┐ ┌──▼──────┐
+//  │ CHARACTER│ │  STUDENT  │ │ENTREPRENEUR│ │  PROMPT    │ │CONCEPTS │
+//  │MANHOOD  │ │  SKILLS   │ │            │ │ ENGINEERING│ │   &     │
+//  │   🦁    │ │    📚     │ │     💼     │ │    💬      │ │  LOGIC 🧠│
+//  └──────────┘ └───────────┘ └────────────┘ └────────────┘ └─────────┘
 //
 // Each node shows:
-// - 🌱📚🎯⭐👑 Current proficiency level
+// - 🔒🌱📚🎯⭐👑 Current proficiency level
 // - Progress bar to next level
 // - Lock icon if not yet unlocked
 // - Prerequisite lines connecting nodes
@@ -294,9 +307,30 @@ type NodeDefinition struct {
 
 // All example trees for seeding
 var ExampleTrees = []TreeDefinition{
-	ExamplePromptTree,
-	ExampleConceptsTree,
-	ExampleModelsTree,
+	// Core Character & Skills
+	CharacterTree,       // 🦁 Character & Manhood
+	StudentTree,         // 📚 Student Skills
+	EntrepreneurshipTree, // 💼 Entrepreneurship
+
+	// AI/Technical Skills
+	ExamplePromptTree,   // 💬 Prompt Engineering
+	ExampleConceptsTree, // 🧠 AI Concepts & Logic
+	ExampleModelsTree,   // 🗄️ Models & Data
+}
+
+// AllTrees returns all available skill trees
+func AllTrees() []TreeDefinition {
+	return ExampleTrees
+}
+
+// GetTreeBySlug returns a tree definition by slug
+func GetTreeBySlug(slug string) *TreeDefinition {
+	for _, tree := range ExampleTrees {
+		if tree.Slug == slug {
+			return &tree
+		}
+	}
+	return nil
 }
 
 // ProficiencyDisplay returns the icon and label for a proficiency level

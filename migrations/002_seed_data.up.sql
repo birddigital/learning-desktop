@@ -169,6 +169,174 @@ INSERT INTO skill_nodes (id, tree_id, tenant_id, slug, title, description, icon,
      '🚀', 3, 0, 200, 80, '["660e8400-e29b-41d4-a716-446655440305", "660e8400-e29b-41d4-a716-446655440306"]'::jsonb);
 
 -- ============================================================================
+-- SKILL TREE: Character & Manhood
+-- ============================================================================
+
+INSERT INTO skill_trees (id, tenant_id, slug, title, description, icon, category, required_level, total_nodes, max_points) VALUES
+    ('660e8400-e29b-41d4-a716-446655440401', '550e8400-e29b-41d4-a716-446655440001',
+     'character-manhood', 'Character & Manhood', 'Build the foundation of who you are. Your word, your actions, your standards.',
+     '🦁', 'soft_skills', 'beginner', 9, 1800);
+
+-- Character & Manhood Nodes
+INSERT INTO skill_nodes (id, tree_id, tenant_id, slug, title, description, icon, position_row, position_col, max_points, required_score, required_nodes) VALUES
+    -- Integrity (Entry point)
+    ('660e8400-e29b-41d4-a716-446655440402', '660e8400-e29b-41d4-a716-446655440401', '550e8400-e29b-41d4-a716-446655440001',
+     'integrity', 'Integrity', 'Your word is your bond. You do what you say, even when no one is watching.',
+     '🤝', 0, 0, 200, 0, '[]'::jsonb),
+
+    -- Ownership (requires integrity)
+    ('660e8400-e29b-41d4-a716-446655440403', '660e8400-e29b-41d4-a716-446655440401', '550e8400-e29b-41d4-a716-446655440001',
+     'responsibility', 'Ownership', 'You own your mistakes. You own your choices. No excuses.',
+     '💪', 1, 0, 200, 50, '["660e8400-e29b-41d4-a716-446655440402"]'::jsonb),
+
+    -- Self-Discipline (requires integrity)
+    ('660e8400-e29b-41d4-a716-446655440404', '660e8400-e29b-41d4-a716-446655440401', '550e8400-e29b-41d4-a716-446655440001',
+     'discipline', 'Self-Discipline', 'You do what needs to be done, even when you don''t feel like it.',
+     '⚔️', 1, 1, 200, 50, '["660e8400-e29b-41d4-a716-446655440402"]'::jsonb),
+
+    -- Respect (requires ownership)
+    ('660e8400-e29b-41d4-a716-446655440405', '660e8400-e29b-41d4-a716-446655440401', '550e8400-e29b-41d4-a716-446655440001',
+     'respect', 'Respect', 'Give it to earn it. Self-respect first. Then others.',
+     '👊', 2, 0, 150, 60, '["660e8400-e29b-41d4-a716-446655440403"]'::jsonb),
+
+    -- Resilience (requires discipline)
+    ('660e8400-e29b-41d4-a716-446655440406', '660e8400-e29b-41d4-a716-446655440401', '550e8400-e29b-41d4-a716-446655440001',
+     'resilience', 'Resilience', 'Fall down 7 times, stand up 8. Adapt and overcome.',
+     '🔥', 2, 1, 200, 60, '["660e8400-e29b-41d4-a716-446655440404"]'::jsonb),
+
+    -- Leadership (requires respect and resilience)
+    ('660e8400-e29b-41d4-a716-446655440407', '660e8400-e29b-41d4-a716-446655440401', '550e8400-e29b-41d4-a716-446655440001',
+     'leadership', 'Leadership', 'Others follow because they want to, not because they have to.',
+     '👑', 3, 0, 250, 75, '["660e8400-e29b-41d4-a716-446655440405", "660e8400-e29b-41d4-a716-446655440406"]'::jsonb),
+
+    -- Purpose (requires discipline and resilience)
+    ('660e8400-e29b-41d4-a716-446655440408', '660e8400-e29b-41d4-a716-446655440401', '550e8400-e29b-41d4-a716-446655440001',
+     'purpose', 'Purpose', 'Know why you''re here. What you''re building. Who you''re becoming.',
+     '🎯', 3, 1, 200, 75, '["660e8400-e29b-41d4-a716-446655440404", "660e8400-e29b-41d4-a716-446655440406"]'::jsonb),
+
+    -- Brotherhood (requires leadership)
+    ('660e8400-e29b-41d4-a716-446655440409', '660e8400-e29b-41d4-a716-446655440401', '550e8400-e29b-41d4-a716-446655440001',
+     'brotherhood', 'Brotherhood', 'Build your circle. Lift others as you climb.',
+     '🤝', 4, 0, 200, 80, '["660e8400-e29b-41d4-a716-446655440407"]'::jsonb),
+
+    -- Legacy (requires purpose and brotherhood)
+    ('660e8400-e29b-41d4-a716-446655440410', '660e8400-e29b-41d4-a716-446655440401', '550e8400-e29b-41d4-a716-446655440001',
+     'legacy', 'Legacy Thinking', 'Make decisions today that your future self will thank you for.',
+     '🏛️', 4, 1, 250, 85, '["660e8400-e29b-41d4-a716-446655440408", "660e8400-e29b-41d4-a716-446655440409"]'::jsonb);
+
+-- ============================================================================
+-- SKILL TREE: Student Skills
+-- ============================================================================
+
+INSERT INTO skill_trees (id, tenant_id, slug, title, description, icon, category, required_level, total_nodes, max_points) VALUES
+    ('660e8400-e29b-41d4-a716-446655440501', '550e8400-e29b-41d4-a716-446655440001',
+     'student-skills', 'Student Skills', 'Master the art of learning. Study smarter, not harder.',
+     '📚', 'soft_skills', 'beginner', 9, 1550);
+
+-- Student Skills Nodes
+INSERT INTO skill_nodes (id, tree_id, tenant_id, slug, title, description, icon, position_row, position_col, max_points, required_score, required_nodes) VALUES
+    -- Deep Focus (Entry point)
+    ('660e8400-e29b-41d4-a716-446655440502', '660e8400-e29b-41d4-a716-446655440501', '550e8400-e29b-41d4-a716-446655440001',
+     'focus', 'Deep Focus', 'Lock in. Eliminate distractions. Do deep work.',
+     '🎯', 0, 0, 150, 0, '[]'::jsonb),
+
+    -- Note Taking (requires focus)
+    ('660e8400-e29b-41d4-a716-446655440503', '660e8400-e29b-41d4-a716-446655440501', '550e8400-e29b-41d4-a716-446655440001',
+     'note-taking', 'Note Taking', 'Capture what matters. Organize knowledge. Recall anything.',
+     '📝', 1, 0, 150, 50, '["660e8400-e29b-41d4-a716-446655440502"]'::jsonb),
+
+    -- Time Management (requires focus)
+    ('660e8400-e29b-41d4-a716-446655440504', '660e8400-e29b-41d4-a716-446655440501', '550e8400-e29b-41d4-a716-446655440001',
+     'time-management', 'Time Management', 'Your time is your life. Spend it intentionally.',
+     '⏰', 1, 1, 150, 50, '["660e8400-e29b-41d4-a716-446655440502"]'::jsonb),
+
+    -- Strategic Reading (requires note-taking)
+    ('660e8400-e29b-41d4-a716-446655440505', '660e8400-e29b-41d4-a716-446655440501', '550e8400-e29b-41d4-a716-446655440001',
+     'reading-strategy', 'Strategic Reading', 'Read faster. Remember more. Extract key insights.',
+     '📖', 2, 0, 150, 60, '["660e8400-e29b-41d4-a716-446655440503"]'::jsonb),
+
+    -- Memory Systems (requires note-taking)
+    ('660e8400-e29b-41d4-a716-446655440506', '660e8400-e29b-41d4-a716-446655440501', '550e8400-e29b-41d4-a716-446655440001',
+     'memory-techniques', 'Memory Systems', 'Never forget what you learn. Build a memory palace.',
+     '🧠', 2, 1, 150, 60, '["660e8400-e29b-41d4-a716-446655440503"]'::jsonb),
+
+    -- Test Mastery (requires reading and memory)
+    ('660e8400-e29b-41d4-a716-446655440507', '660e8400-e29b-41d4-a716-446655440501', '550e8400-e29b-41d4-a716-446655440001',
+     'test-taking', 'Test Mastery', 'Perform when it counts. Manage anxiety. Show what you know.',
+     '✅', 3, 0, 150, 70, '["660e8400-e29b-41d4-a716-446655440505", "660e8400-e29b-41d4-a716-446655440506"]'::jsonb),
+
+    -- Research Skills (requires reading)
+    ('660e8400-e29b-41d4-a716-446655440508', '660e8400-e29b-41d4-a716-446655440501', '550e8400-e29b-41d4-a716-446655440001',
+     'research', 'Research Skills', 'Find truth. Verify sources. Build knowledge from evidence.',
+     '🔍', 3, 1, 150, 70, '["660e8400-e29b-41d4-a716-446655440505"]'::jsonb),
+
+    -- Teaching Others (requires test mastery)
+    ('660e8400-e29b-41d4-a716-446655440509', '660e8400-e29b-41d4-a716-446655440501', '550e8400-e29b-41d4-a716-446655440001',
+     'teaching', 'Teaching Others', 'The best way to learn is to teach. Master by explaining.',
+     '👨‍🏫', 4, 0, 200, 75, '["660e8400-e29b-41d4-a716-446655440507"]'::jsonb),
+
+    -- Metacognition (requires teaching)
+    ('660e8400-e29b-41d4-a716-446655440510', '660e8400-e29b-41d4-a716-446655440501', '550e8400-e29b-41d4-a716-446655440001',
+     'metacognition', 'Metacognition', 'Think about your thinking. Know how you learn. Optimize.',
+     '🔮', 4, 1, 200, 80, '["660e8400-e29b-41d4-a716-446655440509"]'::jsonb);
+
+-- ============================================================================
+-- SKILL TREE: Entrepreneurship
+-- ============================================================================
+
+INSERT INTO skill_trees (id, tenant_id, slug, title, description, icon, category, required_level, total_nodes, max_points) VALUES
+    ('660e8400-e29b-41d4-a716-446655440601', '550e8400-e29b-41d4-a716-446655440001',
+     'entrepreneurship', 'Entrepreneurship', 'Build businesses. Create value. Own your economic future.',
+     '💼', 'career', 'beginner', 9, 1600);
+
+-- Entrepreneurship Nodes
+INSERT INTO skill_nodes (id, tree_id, tenant_id, slug, title, description, icon, position_row, position_col, max_points, required_score, required_nodes) VALUES
+    -- See Opportunities (Entry point)
+    ('660e8400-e29b-41d4-a716-446655440602', '660e8400-e29b-41d4-a716-446655440601', '550e8400-e29b-41d4-a716-446655440001',
+     'opportunity-spotting', 'See Opportunities', 'Problems are opportunities in disguise. Train your eye.',
+     '👁️', 0, 0, 150, 0, '[]'::jsonb),
+
+    -- Create Value (requires opportunity)
+    ('660e8400-e29b-41d4-a716-446655440603', '660e8400-e29b-41d4-a716-446655440601', '550e8400-e29b-41d4-a716-446655440001',
+     'value-creation', 'Create Value', 'Solve real problems. Build things people actually want.',
+     '🔨', 1, 0, 150, 50, '["660e8400-e29b-41d4-a716-446655440602"]'::jsonb),
+
+    -- Money Mindset (requires opportunity)
+    ('660e8400-e29b-41d4-a716-446655440604', '660e8400-e29b-41d4-a716-446655440601', '550e8400-e29b-41d4-a716-446655440001',
+     'money-mindset', 'Money Mindset', 'Understand money. Make it work for you. Build wealth.',
+     '💰', 1, 1, 150, 50, '["660e8400-e29b-41d4-a716-446655440602"]'::jsonb),
+
+    -- Sales (requires value creation)
+    ('660e8400-e29b-41d4-a716-446655440605', '660e8400-e29b-41d4-a716-446655440601', '550e8400-e29b-41d4-a716-446655440001',
+     'sales', 'Sales', 'Communication is currency. Persuade authentically. Close deals.',
+     '🤝', 2, 0, 200, 60, '["660e8400-e29b-41d4-a716-446655440603"]'::jsonb),
+
+    -- Marketing (requires value creation)
+    ('660e8400-e29b-41d4-a716-446655440606', '660e8400-e29b-41d4-a716-446655440601', '550e8400-e29b-41d4-a716-446655440001',
+     'marketing', 'Marketing', 'Tell your story. Reach your people. Build an audience.',
+     '📢', 2, 1, 150, 60, '["660e8400-e29b-41d4-a716-446655440603"]'::jsonb),
+
+    -- Financial Literacy (requires sales and money)
+    ('660e8400-e29b-41d4-a716-446655440607', '660e8400-e29b-41d4-a716-446655440601', '550e8400-e29b-41d4-a716-446655440001',
+     'financial-literacy', 'Financial Literacy', 'Read numbers. Make decisions based on data, not hope.',
+     '📊', 3, 0, 150, 70, '["660e8400-e29b-41d4-a716-446655440605", "660e8400-e29b-41d4-a716-446655440604"]'::jsonb),
+
+    -- Legal Basics (requires marketing)
+    ('660e8400-e29b-41d4-a716-446655440608', '660e8400-e29b-41d4-a716-446655440601', '550e8400-e29b-41d4-a716-446655440001',
+     'legal-basics', 'Legal Foundation', 'Protect yourself. Understand contracts. Entity structure.',
+     '⚖️', 3, 1, 150, 70, '["660e8400-e29b-41d4-a716-446655440606"]'::jsonb),
+
+    -- Team Building (requires financial and legal)
+    ('660e8400-e29b-41d4-a716-446655440609', '660e8400-e29b-41d4-a716-446655440601', '550e8400-e29b-41d4-a716-446655440001',
+     'team-building', 'Build Teams', 'You can''t do it alone. Hire right. Delegate well. Lead.',
+     '👥', 4, 0, 200, 75, '["660e8400-e29b-41d4-a716-446655440607", "660e8400-e29b-41d4-a716-446655440608"]'::jsonb),
+
+    -- Scaling (requires team)
+    ('660e8400-e29b-41d4-a716-446655440610', '660e8400-e29b-41d4-a716-446655440601', '550e8400-e29b-41d4-a716-446655440001',
+     'scaling', 'Scale Up', 'Turn what works into systems. Grow without breaking.',
+     '📈', 4, 1, 200, 80, '["660e8400-e29b-41d4-a716-446655440609"]'::jsonb);
+
+-- ============================================================================
 -- DEMO STUDENT SKILLS (initialize with some progress)
 -- ============================================================================
 
