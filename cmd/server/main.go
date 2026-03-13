@@ -3,24 +3,60 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/birddigital/htmx-r/components"
 	"github.com/birddigital/htmx-r/pkg/voice"
+	"github.com/birddigital/learning-desktop/internal/ai"
+	"github.com/birddigital/go-llm-providers/pkg/providers"
 	"github.com/google/uuid"
+)
+
+// sessionStore holds active chat sessions in memory.
+// In production, this would use Redis or a database.
+type sessionStore struct {
+	mu       sync.RWMutex
+	sessions map[string]*chatSession
+}
+
+type chatSession struct {
+	ID        string
+	Messages  []providers.Message
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+var (
+	tutor    *ai.Tutor
+	sessions = &sessionStore{
+		sessions: make(map[string]*chatSession),
+	}
 )
 
 func main() {
 	// Configuration
 	port := flag.String("port", "3000", "Server port")
 	flag.Parse()
+
+	// Initialize AI tutor
+	var err error
+	tutor, err = ai.New()
+	if err != nil {
+		log.Printf("Warning: AI tutor initialization failed: %v", err)
+		log.Printf("Chat will use fallback responses. Set ANTHROPIC_CREDENTIALS environment variable to enable AI.")
+		tutor = nil // Will use fallback
+	} else {
+		log.Printf("AI tutor initialized successfully")
+	}
 
 	// Create HTTP multiplexer
 	mux := http.NewServeMux()
@@ -39,14 +75,15 @@ func main() {
 	mux.HandleFunc("/api/chat/clear", handleClear)
 	mux.HandleFunc("/api/chat/export", handleExport)
 	mux.HandleFunc("/api/events", handleSSE)
+	mux.HandleFunc("/health", handleHealth)
 
 	// Start server
 	addr := fmt.Sprintf(":%s", *port)
 	server := &http.Server{
 		Addr:         addr,
 		Handler:      mux,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  30 * time.Second, // Increased for AI responses
+		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
@@ -70,6 +107,21 @@ func main() {
 		log.Fatalf("Server shutdown failed: %v", err)
 	}
 	log.Println("Server stopped")
+}
+
+// handleHealth returns the health status of the server.
+func handleHealth(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	status := map[string]interface{}{
+		"status":  "ok",
+		"tutor":   "enabled",
+		"version": "0.1.0",
+	}
+	if tutor == nil {
+		status["tutor"] = "fallback"
+		status["warning"] = "AI tutor not configured - set ANTHROPIC_CREDENTIALS"
+	}
+	json.NewEncoder(w).Encode(status)
 }
 
 // handleIndex serves the main page
@@ -116,28 +168,66 @@ func handleChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sessionID := getOrCreateSessionID(r)
+
+	// Get or create session
+	session := getOrCreateSession(sessionID)
+
 	// Create user message
-	userMsg := components.ChatMessage{
+	userMsg := providers.Message{
+		Role:    "user",
+		Content: message,
+	}
+	session.Messages = append(session.Messages, userMsg)
+
+	// Render user message
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	components.RenderMessageHTML(w, components.ChatMessage{
 		ID:        uuid.New().String(),
 		Role:      "user",
 		Content:   message,
 		Timestamp: time.Now(),
+	})
+
+	// Generate AI response
+	var responseContent string
+
+	if tutor == nil {
+		// Fallback response when AI is not configured
+		responseContent = fallbackResponse(message)
+	} else {
+		// Get response from AI tutor
+		ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
+		defer cancel()
+
+		resp, err := tutor.RespondWithConversation(ctx, session.Messages)
+		if err != nil {
+			log.Printf("AI tutor error: %v", err)
+			responseContent = fmt.Sprintf("I'm having trouble connecting right now. Error: %v\n\nPlease try again or check that the AI service is configured.", err)
+		} else {
+			responseContent = resp
+		}
 	}
 
-	// Render user message
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	components.RenderMessageHTML(w, userMsg)
+	// Add assistant message to session
+	assistantMsg := providers.Message{
+		Role:    "assistant",
+		Content: responseContent,
+	}
+	session.Messages = append(session.Messages, assistantMsg)
 
-	// TODO: Generate AI response
-	// For now, echo a simple response
-	assistantMsg := components.ChatMessage{
+	// Render assistant message
+	components.RenderMessageHTML(w, components.ChatMessage{
 		ID:        uuid.New().String(),
 		Role:      "assistant",
-		Content:   "I understand you're interested in: \"" + message + "\". Let me help you learn more about this topic.",
+		Content:   responseContent,
 		Timestamp: time.Now(),
-	}
+	})
+}
 
-	components.RenderMessageHTML(w, assistantMsg)
+// fallbackResponse provides a simple response when AI is not configured.
+func fallbackResponse(message string) string {
+	return fmt.Sprintf("I understand you're asking about: \"%s\"\n\n**Note:** The AI tutor is not currently configured. To enable full AI responses, set the ANTHROPIC_CREDENTIALS environment variable.\n\nWhen configured, I can help you learn about:\n- Prompt Engineering\n- AI Concepts\n- Models & Data\n- Character & Manhood\n- Student Skills\n- Entrepreneurship", message)
 }
 
 // handleClear clears the chat session
@@ -147,10 +237,17 @@ func handleClear(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sessionID := getOrCreateSessionID(r)
+
+	// Clear session
+	sessions.mu.Lock()
+	delete(sessions.sessions, sessionID)
+	sessions.mu.Unlock()
+
 	// Re-render the main page with new session
-	sessionID := uuid.New().String()
+	newSessionID := uuid.New().String()
 	chatComponent := components.NewChat(components.ChatProps{
-		SessionID:     sessionID,
+		SessionID:     newSessionID,
 		Placeholder:   "Type your message or use voice input...",
 		WelcomeTitle:  "Get Ahead of AI",
 		WelcomePrompt: "Conversation cleared. Ready for a fresh start!",
@@ -162,6 +259,7 @@ func handleClear(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := chatComponent.Render(w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }
 
@@ -172,13 +270,20 @@ func handleExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sessionID := getOrCreateSessionID(r)
+	session := getSession(sessionID)
+
 	w.Header().Set("Content-Type", "text/plain")
 	w.Header().Set("Content-Disposition", "attachment; filename=conversation.txt")
 	w.Write([]byte("Learning Desktop Conversation Export\n\n"))
-	w.Write([]byte("Session ID: " + getOrCreateSessionID(r) + "\n"))
-	w.Write([]byte("Date: " + time.Now().Format(time.RFC3339) + "\n"))
+	w.Write([]byte(fmt.Sprintf("Session ID: %s\n", sessionID)))
+	w.Write([]byte(fmt.Sprintf("Date: %s\n", time.Now().Format(time.RFC3339))))
+	w.Write([]byte(fmt.Sprintf("Messages: %d\n", len(session.Messages))))
 	w.Write([]byte("\n---\n\n"))
-	w.Write([]byte("(Conversation history would be exported here)\n"))
+
+	for i, msg := range session.Messages {
+		w.Write([]byte(fmt.Sprintf("[%d] %s:\n%s\n\n", i+1, msg.Role, msg.Content)))
+	}
 }
 
 // handleSSE provides Server-Sent Events for real-time updates
@@ -195,7 +300,8 @@ func handleSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	// Send initial connection event
-	fmt.Fprintf(w, "event: connected\ndata: {\"session_id\":\"%s\"}\n\n", getOrCreateSessionID(r))
+	sessionID := getOrCreateSessionID(r)
+	fmt.Fprintf(w, "event: connected\ndata: {\"session_id\":\"%s\"}\n\n", sessionID)
 	flusher.Flush()
 
 	// Keep connection alive
@@ -220,4 +326,46 @@ func getOrCreateSessionID(r *http.Request) string {
 		return cookie.Value
 	}
 	return uuid.New().String()
+}
+
+// getOrCreateSession gets an existing session or creates a new one
+func getOrCreateSession(id string) *chatSession {
+	sessions.mu.RLock()
+	session, exists := sessions.sessions[id]
+	sessions.mu.RUnlock()
+
+	if exists {
+		session.UpdatedAt = time.Now()
+		return session
+	}
+
+	sessions.mu.Lock()
+	defer sessions.mu.Unlock()
+
+	// Check again in case another goroutine created it
+	if session, exists := sessions.sessions[id]; exists {
+		return session
+	}
+
+	session = &chatSession{
+		ID:        id,
+		Messages:  make([]providers.Message, 0),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	sessions.sessions[id] = session
+	return session
+}
+
+// getSession retrieves an existing session
+func getSession(id string) *chatSession {
+	sessions.mu.RLock()
+	defer sessions.mu.RUnlock()
+	if session, exists := sessions.sessions[id]; exists {
+		return session
+	}
+	return &chatSession{
+		ID:       id,
+		Messages: make([]providers.Message, 0),
+	}
 }

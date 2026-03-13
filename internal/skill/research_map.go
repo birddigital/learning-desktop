@@ -117,10 +117,15 @@ func GetResearchStatus(treeSlug, nodeSlug string) ResearchCompleteness {
 			"deployment":      CompletenessComplete,
 		},
 		"student-skills": {
-			"focus":           CompletenessPartial,
-			"note-taking":     CompletenessPartial,
-			"time-management": CompletenessPartial,
-			// Others are partial or empty
+			"focus":            CompletenessComplete,
+			"memory-techniques": CompletenessComplete,
+			"note-taking":      CompletenessComplete,
+			"time-management":  CompletenessComplete,
+			"reading-strategy": CompletenessComplete,
+			"test-taking":      CompletenessComplete,
+			"research":         CompletenessComplete,
+			"teaching":         CompletenessComplete,
+			"metacognition":    CompletenessComplete,
 		},
 	}
 
@@ -146,10 +151,10 @@ type OverallProgress struct {
 func GetOverallProgress() OverallProgress {
 	return OverallProgress{
 		TotalNodes:      45, // 6+6+6+9+9+9 nodes across all trees
-		CompleteNodes:   33, // All AI + character + entrepreneurship
-		PartialNodes:    6,  // student_skills partial
-		EmptyNodes:      6,  // student_skills remaining
-		TotalTopics:     213, // Approximate total topics
-		CompletionPct:   73.3, // (33/45 complete + 6/45 partial/2)
+		CompleteNodes:   45, // All nodes complete (student_skills finished)
+		PartialNodes:    0,  // No partial nodes remaining
+		EmptyNodes:      0,  // No empty nodes
+		TotalTopics:     233, // 30+30+30+45+45+63 total topics (student_skills expanded from 21 to 45)
+		CompletionPct:   100.0, // All 45 nodes complete with baseline or expanded content
 	}
 }
