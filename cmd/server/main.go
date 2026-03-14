@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"os"
@@ -18,6 +19,7 @@ import (
 	"github.com/birddigital/learning-desktop/internal/ai"
 	"github.com/birddigital/learning-desktop/internal/auth"
 	"github.com/birddigital/learning-desktop/internal/db"
+	pagehandlers "github.com/birddigital/learning-desktop/internal/handlers"
 	"github.com/birddigital/learning-desktop/internal/models"
 	"github.com/birddigital/learning-desktop/internal/repository"
 	"github.com/birddigital/learning-desktop/internal/service"
@@ -29,6 +31,10 @@ var (
 	tutor         *ai.Tutor
 	sessionService *service.SessionService
 	authMiddleware *auth.Middleware
+	chatHandler    *pagehandlers.ChatHandler
+	coursesHandler *pagehandlers.CoursesHandler
+	progressHandler *pagehandlers.ProgressHandler
+	settingsHandler *pagehandlers.SettingsHandler
 )
 
 // defaultTenantID is used for demo purposes. In production, this comes from auth.
@@ -41,6 +47,97 @@ func getStudentID(w http.ResponseWriter, r *http.Request) uuid.UUID {
 	// For demo, use the default student ID
 	// In production, this would come from JWT auth
 	return defaultStudentID
+}
+
+// renderChatLayout renders the chat interface with navigation
+func renderChatLayout(w http.ResponseWriter, r *http.Request, sessionID string) error {
+	// Create chat component
+	chatComponent := components.NewChat(components.ChatProps{
+		SessionID:     sessionID,
+		Placeholder:   "Type your message or use voice input...",
+		WelcomeTitle:  "Get Ahead of AI",
+		WelcomePrompt: "Welcome! I'm your AI tutor. Ask me anything about AI, or click the microphone to start talking.",
+		SSEEndpoint:   "/api/events",
+		Theme:         "dark",
+		ShowMedia:     true,
+	})
+
+	// Get chat HTML
+	chatHTML, err := chatComponent.HTML()
+	if err != nil {
+		return err
+	}
+
+	// Build sidebar navigation items
+	sidebarItems := []components.NavItemProps{
+		{
+			Label:      "Chat",
+			Icon:       "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z",
+			HXGet:      "/?partial=true",
+			HXTarget:   "#main-content",
+			StateValue: "chat",
+		},
+		{
+			Label:      "Courses",
+			Icon:       "M4 19.5A2.5 2.5 0 0 1 6.5 17H20",
+			HXGet:      "/courses?partial=true",
+			HXTarget:   "#main-content",
+			StateValue: "courses",
+		},
+		{
+			Label:      "Progress",
+			Icon:       "M12 20V10M18 20V4M6 20v-6",
+			HXGet:      "/progress?partial=true",
+			HXTarget:   "#main-content",
+			StateValue: "progress",
+		},
+		{
+			Label:      "Settings",
+			Icon:       "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M10.5 12.5l-2.5 2.5",
+			HXGet:      "/settings?partial=true",
+			HXTarget:   "#main-content",
+			StateValue: "settings",
+		},
+	}
+
+	layout := components.Layout(components.LayoutProps{
+		Sidebar: components.SidebarProps{
+			BrandName:  "Learning Desktop",
+			BrandShort: "LD",
+			Items:      sidebarItems,
+			StateKey:   "sidebar",
+		},
+		PageTitle:         "Chat",
+		UserName:          "Alex Student",
+		NotificationCount: 0,
+		ActiveNav:         "chat",
+		ContentHTML:       template.HTML(chatHTML),
+	})
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	return layout.Render(w)
+}
+
+// renderPartialChat renders just the chat component (for HTMX navigation)
+func renderPartialChat(w http.ResponseWriter, sessionID string) error {
+	chatComponent := components.NewChat(components.ChatProps{
+		SessionID:     sessionID,
+		Placeholder:   "Type your message or use voice input...",
+		WelcomeTitle:  "Get Ahead of AI",
+		WelcomePrompt: "Welcome! I'm your AI tutor. Ask me anything about AI, or click the microphone to start talking.",
+		SSEEndpoint:   "/api/events",
+		Theme:         "dark",
+		ShowMedia:     true,
+	})
+
+	chatHTML, err := chatComponent.HTML()
+	if err != nil {
+		return err
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write([]byte(chatHTML))
+	return nil
 }
 
 func main() {
@@ -115,6 +212,12 @@ func main() {
 	})
 	log.Printf("Auth middleware initialized")
 
+	// Initialize page handlers
+	chatHandler = pagehandlers.NewChatHandler(tutor, sessionService, defaultTenantID.String(), defaultStudentID.String())
+	coursesHandler = pagehandlers.NewCoursesHandler()
+	progressHandler = pagehandlers.NewProgressHandler(sessionService)
+	settingsHandler = pagehandlers.NewSettingsHandler()
+
 	// Create HTTP multiplexer
 	mux := http.NewServeMux()
 
@@ -126,12 +229,25 @@ func main() {
 	// Static file server (serve from htmx-r)
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("../htmx-r/static"))))
 
-	// Chat endpoints
+	// Page routes (with navigation)
 	mux.HandleFunc("/", handleIndex)
+	mux.HandleFunc("/courses", handleCourses)
+	mux.HandleFunc("/progress", handleProgress)
+	mux.HandleFunc("/settings", handleSettings)
+
+	// Chat endpoints
 	mux.HandleFunc("/api/chat", handleChat)
 	mux.HandleFunc("/api/chat/clear", handleClear)
 	mux.HandleFunc("/api/chat/export", handleExport)
 	mux.HandleFunc("/api/events", handleSSE)
+
+	// Settings endpoints (with toast notifications)
+	mux.HandleFunc("/api/settings/profile", handleSettingsProfile)
+	mux.HandleFunc("/api/settings/preferences", handleSettingsPreferences)
+	mux.HandleFunc("/api/settings/voice", handleSettingsVoice)
+	mux.HandleFunc("/api/settings/appearance", handleSettingsAppearance)
+
+	// Health endpoint
 	mux.HandleFunc("/health", handleHealth)
 
 	// Start server
@@ -192,31 +308,84 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(status)
 }
 
-// handleIndex serves the main page
+// handleIndex serves the main page with navigation
 func handleIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return
 	}
 
-	// Use session_id cookie for chat session tracking
 	sessionID := getOrCreateSessionID(r)
+	isPartial := r.URL.Query().Get("partial") == "true"
 
-	chatComponent := components.NewChat(components.ChatProps{
-		SessionID:     sessionID,
-		Placeholder:   "Type your message or use voice input...",
-		WelcomeTitle:  "Get Ahead of AI",
-		WelcomePrompt: "Welcome! I'm your AI tutor. Ask me anything about AI, or click the microphone to start talking.",
-		SSEEndpoint:   "/api/events",
-		Theme:         "dark",
-		ShowMedia:     true,
-	})
+	if isPartial {
+		// Return just the chat component for HTMX navigation
+		if err := renderPartialChat(w, sessionID); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	} else {
+		// Return full layout with navigation
+		if err := renderChatLayout(w, r, sessionID); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}
+}
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := chatComponent.Render(w); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+// handleCourses serves the courses catalog page
+func handleCourses(w http.ResponseWriter, r *http.Request) {
+	coursesHandler.ServeHTTP(w, r)
+}
+
+// handleProgress serves the progress tracking page
+func handleProgress(w http.ResponseWriter, r *http.Request) {
+	progressHandler.ServeHTTP(w, r)
+}
+
+// handleSettings serves the settings page
+func handleSettings(w http.ResponseWriter, r *http.Request) {
+	settingsHandler.ServeHTTP(w, r)
+}
+
+// handleSettingsProfile handles profile settings updates
+func handleSettingsProfile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
+	// In a real app, would save to database here
+	// For now, just show success notification
+	pagehandlers.ToastNotification(w, "Profile updated successfully!", "success")
+}
+
+// handleSettingsPreferences handles learning preferences updates
+func handleSettingsPreferences(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	pagehandlers.ToastNotification(w, "Preferences saved!", "success")
+}
+
+// handleSettingsVoice handles voice settings updates
+func handleSettingsVoice(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	pagehandlers.ToastNotification(w, "Voice settings updated!", "success")
+}
+
+// handleSettingsAppearance handles appearance settings updates
+func handleSettingsAppearance(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	pagehandlers.ToastNotification(w, "Theme changed successfully!", "success")
 }
 
 // handleChat processes chat messages

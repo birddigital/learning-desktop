@@ -1,0 +1,173 @@
+<!-- Settings Page -->
+<div class="settings-page">
+    <div class="page-header">
+        <h2>Settings</h2>
+        <p class="page-subtitle">Customize your learning experience</p>
+    </div>
+
+    <div class="settings-sections">
+        <!-- Profile Settings -->
+        <div class="settings-section">
+            <h3>Profile</h3>
+            <div class="settings-form">
+                <div class="form-group">
+                    <label for="display-name">Display Name</label>
+                    <input type="text" id="display-name" name="display-name" value="Alex Student" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" value="alex@demo.learning.dev" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label for="bio">Bio</label>
+                    <textarea id="bio" name="bio" rows="3" class="form-input" placeholder="Tell us about yourself...">Learning AI to stay ahead of the curve.</textarea>
+                </div>
+                <button class="btn btn-primary" hx-post="/api/settings/profile" hx-indicator=".btn">
+                    Save Changes
+                </button>
+            </div>
+        </div>
+
+        <!-- Learning Preferences -->
+        <div class="settings-section">
+            <h3>Learning Preferences</h3>
+            <div class="settings-form">
+                <div class="form-group">
+                    <label for="skill-level">Current Skill Level</label>
+                    <select id="skill-level" name="skill-level" class="form-select">
+                        <option value="beginner" selected>Beginner</option>
+                        <option value="intermediate">Intermediate</option>
+                        <option value="advanced">Advanced</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="learning-goal">Primary Learning Goal</label>
+                    <select id="learning-goal" name="learning-goal" class="form-select">
+                        <option value="career">Career Advancement</option>
+                        <option value="business" selected>Business & Entrepreneurship</option>
+                        <option value="personal">Personal Interest</option>
+                        <option value="academic">Academic Research</option>
+                    </select>
+                </div>
+                <div class="form-group checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="daily-reminders" checked>
+                        <span>Daily learning reminders</span>
+                    </label>
+                </div>
+                <div class="form-group checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="streak-notifications" checked>
+                        <span>Streak notifications</span>
+                    </label>
+                </div>
+                <div class="form-group checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="weekly-report">
+                        <span>Weekly progress report</span>
+                    </label>
+                </div>
+                <button class="btn btn-primary" hx-post="/api/settings/preferences" hx-indicator=".btn">
+                    Save Preferences
+                </button>
+            </div>
+        </div>
+
+        <!-- Voice Settings -->
+        <div class="settings-section">
+            <h3>Voice Settings</h3>
+            <div class="settings-form">
+                <div class="form-group">
+                    <label for="voice-type">Voice Type</label>
+                    <select id="voice-type" name="voice-type" class="form-select">
+                        <option value="natural" selected>Natural</option>
+                        <option value="professional">Professional</option>
+                        <option value="friendly">Friendly</option>
+                        <option value="enthusiastic">Enthusiastic</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="voice-speed">Voice Speed</label>
+                    <input type="range" id="voice-speed" name="voice-speed" min="0.5" max="2" step="0.1" value="1" class="form-range">
+                    <span class="range-value">1.0x</span>
+                </div>
+                <div class="form-group checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="auto-speak" checked>
+                        <span>Auto-speak AI responses</span>
+                    </label>
+                </div>
+                <div class="form-group checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="voice-input" checked>
+                        <span>Enable voice input</span>
+                    </label>
+                </div>
+                <button class="btn btn-primary" hx-post="/api/settings/voice" hx-indicator=".btn">
+                    Save Voice Settings
+                </button>
+            </div>
+        </div>
+
+        <!-- Appearance -->
+        <div class="settings-section">
+            <h3>Appearance</h3>
+            <div class="settings-form">
+                <div class="form-group">
+                    <label>Theme</label>
+                    <div class="theme-options">
+                        <label class="theme-option active">
+                            <input type="radio" name="theme" value="dark" checked>
+                            <span class="theme-preview dark"></span>
+                            <span>Dark</span>
+                        </label>
+                        <label class="theme-option">
+                            <input type="radio" name="theme" value="light">
+                            <span class="theme-preview light"></span>
+                            <span>Light</span>
+                        </label>
+                        <label class="theme-option">
+                            <input type="radio" name="theme" value="auto">
+                            <span class="theme-preview auto"></span>
+                            <span>Auto</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="compact-mode">
+                        <span>Compact mode</span>
+                    </label>
+                </div>
+                <button class="btn btn-primary" hx-post="/api/settings/appearance" hx-indicator=".btn">
+                    Save Appearance
+                </button>
+            </div>
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="settings-section danger-zone">
+            <h3>Danger Zone</h3>
+            <div class="danger-actions">
+                <div class="danger-action">
+                    <div>
+                        <h4>Clear Chat History</h4>
+                        <p>Permanently delete all your chat messages</p>
+                    </div>
+                    <button class="btn btn-danger" hx-post="/api/chat/clear" hx-confirm="Are you sure? This cannot be undone." hx-target="#main-content">
+                        Clear History
+                    </button>
+                </div>
+                <div class="danger-action">
+                    <div>
+                        <h4>Reset Progress</h4>
+                        <p>Reset all learning progress (requires confirmation)</p>
+                    </div>
+                    <button class="btn btn-danger" hx-post="/api/settings/reset" hx-confirm="This will permanently delete all your progress. Are you sure?">
+                        Reset Progress
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
