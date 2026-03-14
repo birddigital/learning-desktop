@@ -90,6 +90,16 @@ const (
 	StatusSuspended  StudentStatus = "suspended"
 )
 
+// UserRole represents user authorization roles
+type UserRole string
+
+const (
+	RoleStudent  UserRole = "student"
+	RoleInstructor UserRole = "instructor"
+	RoleAdmin    UserRole = "admin"
+	RoleOwner    UserRole = "owner"
+)
+
 // ============================================================================
 // STUDENT SESSION
 // ============================================================================
@@ -115,6 +125,7 @@ const (
 	SessionActive      SessionStatus = "active"
 	SessionCompleted   SessionStatus = "completed"
 	SessionAbandoned   SessionStatus = "abandoned"
+	SessionEnded       SessionStatus = "ended"
 )
 
 // ============================================================================
