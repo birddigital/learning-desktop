@@ -250,6 +250,63 @@ func (r *SessionRepository) Complete(ctx context.Context, sessionID uuid.UUID) e
 	return err
 }
 
+// GetByID retrieves a session by ID
+func (r *SessionRepository) GetByID(ctx context.Context, sessionID uuid.UUID) (*models.StudentSession, error) {
+	var session models.StudentSession
+	query := `
+		SELECT id, student_id, tenant_id, current_module, current_lesson,
+			completed_ids, status, started_at, last_active, completed_at
+		FROM student_sessions
+		WHERE id = $1`
+
+	err := r.db.GetContext(ctx, &session, query, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	return &session, nil
+}
+
+// GetActiveByStudent retrieves the active session for a student (alias for GetActive)
+func (r *SessionRepository) GetActiveByStudent(ctx context.Context, studentID uuid.UUID) (*models.StudentSession, error) {
+	return r.GetActive(ctx, studentID)
+}
+
+// GetRecentByStudent retrieves recent sessions for a student
+func (r *SessionRepository) GetRecentByStudent(ctx context.Context, studentID uuid.UUID, limit int) ([]*models.StudentSession, error) {
+	var sessions []*models.StudentSession
+	query := `
+		SELECT id, student_id, tenant_id, current_module, current_lesson,
+			completed_ids, status, started_at, last_active, completed_at
+		FROM student_sessions
+		WHERE student_id = $1
+		ORDER BY last_active DESC
+		LIMIT $2`
+
+	err := r.db.SelectContext(ctx, &sessions, query, studentID, limit)
+	if err != nil {
+		return nil, err
+	}
+	return sessions, nil
+}
+
+// UpdateLastActive updates the last_active timestamp for a session
+func (r *SessionRepository) UpdateLastActive(ctx context.Context, sessionID uuid.UUID) error {
+	query := `UPDATE student_sessions SET last_active = NOW() WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, sessionID)
+	return err
+}
+
+// EndSession marks a session as ended (sets status to 'ended')
+func (r *SessionRepository) EndSession(ctx context.Context, sessionID uuid.UUID) error {
+	query := `
+		UPDATE student_sessions
+		SET status = 'ended', completed_at = NOW()
+		WHERE id = $1`
+
+	_, err := r.db.ExecContext(ctx, query, sessionID)
+	return err
+}
+
 // ============================================================================
 // COURSE REPOSITORY
 // ============================================================================
