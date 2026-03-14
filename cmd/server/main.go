@@ -10,45 +10,88 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
 	"github.com/birddigital/htmx-r/components"
 	"github.com/birddigital/htmx-r/pkg/voice"
 	"github.com/birddigital/learning-desktop/internal/ai"
+	"github.com/birddigital/learning-desktop/internal/auth"
+	"github.com/birddigital/learning-desktop/internal/db"
+	"github.com/birddigital/learning-desktop/internal/models"
+	"github.com/birddigital/learning-desktop/internal/repository"
+	"github.com/birddigital/learning-desktop/internal/service"
 	"github.com/birddigital/go-llm-providers/pkg/providers"
 	"github.com/google/uuid"
 )
 
-// sessionStore holds active chat sessions in memory.
-// In production, this would use Redis or a database.
-type sessionStore struct {
-	mu       sync.RWMutex
-	sessions map[string]*chatSession
-}
-
-type chatSession struct {
-	ID        string
-	Messages  []providers.Message
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
 var (
-	tutor    *ai.Tutor
-	sessions = &sessionStore{
-		sessions: make(map[string]*chatSession),
-	}
+	tutor         *ai.Tutor
+	sessionService *service.SessionService
+	authMiddleware *auth.Middleware
 )
+
+// defaultTenantID is used for demo purposes. In production, this comes from auth.
+var defaultTenantID = uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
+
+// defaultStudentID is the demo student for testing.
+var defaultStudentID = uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")
+
+func getStudentID(w http.ResponseWriter, r *http.Request) uuid.UUID {
+	// For demo, use the default student ID
+	// In production, this would come from JWT auth
+	return defaultStudentID
+}
 
 func main() {
 	// Configuration
 	port := flag.String("port", "3000", "Server port")
 	flag.Parse()
 
+	// Initialize database
+	database, err := db.OpenFromEnv()
+	if err != nil {
+		log.Printf("Warning: Database connection failed: %v", err)
+		log.Printf("Chat will use in-memory sessions. Set DATABASE_URL to enable persistence.")
+		database = nil
+	} else {
+		log.Printf("Database connected successfully")
+		defer database.Close()
+
+		// Run health check
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if err := database.Health(ctx); err != nil {
+			log.Printf("Warning: Database health check failed: %v", err)
+		}
+	}
+
+	// Initialize repositories
+	var chatRepo *repository.ChatRepository
+	var sessionRepo *repository.SessionRepository
+
+	if database != nil {
+		// Convert *db.DB to *repository.DB for repository layer
+		repoDB := &repository.DB{DB: database.DB}
+		chatRepo = repository.NewChatRepository(repoDB)
+		sessionRepo = repository.NewSessionRepository(repoDB)
+	}
+
+	// Initialize session service
+	if chatRepo != nil && sessionRepo != nil {
+		sessionService = service.NewSessionService(chatRepo, sessionRepo, defaultTenantID)
+
+		// Start background cleanup goroutine
+		go func() {
+			ticker := time.NewTicker(1 * time.Minute)
+			defer ticker.Stop()
+			for range ticker.C {
+				sessionService.CleanupExpiredSessions()
+			}
+		}()
+	}
+
 	// Initialize AI tutor
-	var err error
 	tutor, err = ai.New()
 	if err != nil {
 		log.Printf("Warning: AI tutor initialization failed: %v", err)
@@ -58,10 +101,24 @@ func main() {
 		log.Printf("AI tutor initialized successfully")
 	}
 
+	// Initialize auth middleware
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		jwtSecret = "dev-secret-change-in-production" // Default for development
+		log.Printf("Warning: Using default JWT secret. Set JWT_SECRET for production.")
+	}
+	authMiddleware = auth.NewMiddleware(&auth.Config{
+		JWTSecret:      jwtSecret,
+		JWTIssuer:      "learning-desktop",
+		RequireAuth:    false, // Set to true in production
+		DefaultTenantID: defaultTenantID,
+	})
+	log.Printf("Auth middleware initialized")
+
 	// Create HTTP multiplexer
 	mux := http.NewServeMux()
 
-	// Initialize services
+	// Initialize voice services
 	voiceService := voice.NewVoiceService(nil, nil, nil)
 	voiceHandler := voice.NewVoiceHandler(voiceService)
 	voiceHandler.RegisterRoutes(mux)
@@ -81,8 +138,8 @@ func main() {
 	addr := fmt.Sprintf(":%s", *port)
 	server := &http.Server{
 		Addr:         addr,
-		Handler:      mux,
-		ReadTimeout:  30 * time.Second, // Increased for AI responses
+		Handler:      authMiddleware.TenantContext(mux),
+		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
@@ -113,14 +170,25 @@ func main() {
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	status := map[string]interface{}{
-		"status":  "ok",
-		"tutor":   "enabled",
-		"version": "0.1.0",
+		"status":       "ok",
+		"tutor":        "enabled",
+		"database":     "disconnected",
+		"session_type": "memory",
+		"version":      "0.1.0",
 	}
-	if tutor == nil {
+
+	if tutor != nil {
+		status["tutor"] = "enabled"
+	} else {
 		status["tutor"] = "fallback"
 		status["warning"] = "AI tutor not configured - set ANTHROPIC_CREDENTIALS"
 	}
+
+	if sessionService != nil {
+		status["session_type"] = "persistent"
+		status["database"] = "connected"
+	}
+
 	json.NewEncoder(w).Encode(status)
 }
 
@@ -131,7 +199,9 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Use session_id cookie for chat session tracking
 	sessionID := getOrCreateSessionID(r)
+
 	chatComponent := components.NewChat(components.ChatProps{
 		SessionID:     sessionID,
 		Placeholder:   "Type your message or use voice input...",
@@ -168,17 +238,46 @@ func handleChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionID := getOrCreateSessionID(r)
-
-	// Get or create session
-	session := getOrCreateSession(sessionID)
-
-	// Create user message
-	userMsg := providers.Message{
-		Role:    "user",
-		Content: message,
+	// Get student ID from auth/cookie
+	studentID := getStudentID(w, r)
+	sessionIDStr := getOrCreateSessionID(r)
+	var sessionID uuid.UUID
+	if sessionIDStr == "" {
+		// Create new session in database
+		if sessionService != nil {
+			session, err := sessionService.GetOrCreateSession(r.Context(), studentID)
+			if err != nil {
+				log.Printf("Warning: failed to create session: %v", err)
+			} else {
+				sessionID = session.ID
+			}
+		}
+		// Fallback to random UUID if session service fails
+		if sessionID == uuid.Nil {
+			sessionID = uuid.New()
+		}
+		// Set cookie
+		http.SetCookie(w, &http.Cookie{
+			Name:     "session_id",
+			Value:    sessionID.String(),
+			Path:     "/",
+			MaxAge:   int(365 * 24 * time.Hour / time.Second),
+			SameSite: http.SameSiteLaxMode,
+		})
+	} else {
+		sessionID = uuid.MustParse(sessionIDStr)
 	}
-	session.Messages = append(session.Messages, userMsg)
+
+	ctx := r.Context()
+
+	// Persist user message if session service is available
+	if sessionService != nil {
+		_, err := sessionService.AddMessage(ctx, sessionID, studentID, defaultTenantID, models.RoleUser, message)
+		if err != nil {
+			log.Printf("Warning: failed to save message: %v", err)
+			// Continue anyway - don't block user experience
+		}
+	}
 
 	// Render user message
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -193,28 +292,59 @@ func handleChat(w http.ResponseWriter, r *http.Request) {
 	var responseContent string
 
 	if tutor == nil {
-		// Fallback response when AI is not configured
 		responseContent = fallbackResponse(message)
 	} else {
+		// Build conversation context
+		var messages []providers.Message
+
+		if sessionService != nil {
+			// Load message history from database
+			dbMessages, err := sessionService.GetMessages(ctx, sessionID, 10)
+			if err == nil && len(dbMessages) > 0 {
+				for _, msg := range dbMessages {
+					messages = append(messages, providers.Message{
+						Role:    string(msg.Role),
+						Content: msg.Content,
+					})
+				}
+			}
+		}
+
+		// Add current message if not in history
+		if len(messages) == 0 || messages[len(messages)-1].Content != message {
+			messages = append(messages, providers.Message{
+				Role:    "user",
+				Content: message,
+			})
+		}
+
 		// Get response from AI tutor
-		ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
+		reqCtx, cancel := context.WithTimeout(ctx, 25*time.Second)
 		defer cancel()
 
-		resp, err := tutor.RespondWithConversation(ctx, session.Messages)
+		var resp string
+		var err error
+		if len(messages) > 1 {
+			resp, err = tutor.RespondWithConversation(reqCtx, messages)
+		} else {
+			resp, err = tutor.Respond(reqCtx, message)
+		}
+
 		if err != nil {
 			log.Printf("AI tutor error: %v", err)
-			responseContent = fmt.Sprintf("I'm having trouble connecting right now. Error: %v\n\nPlease try again or check that the AI service is configured.", err)
+			responseContent = fmt.Sprintf("I'm having trouble connecting right now. Error: %v\n\nPlease try again.", err)
 		} else {
 			responseContent = resp
 		}
 	}
 
-	// Add assistant message to session
-	assistantMsg := providers.Message{
-		Role:    "assistant",
-		Content: responseContent,
+	// Persist assistant message if session service is available
+	if sessionService != nil {
+		_, err := sessionService.AddMessage(ctx, sessionID, studentID, defaultTenantID, models.RoleAssistant, responseContent)
+		if err != nil {
+			log.Printf("Warning: failed to save assistant message: %v", err)
+		}
 	}
-	session.Messages = append(session.Messages, assistantMsg)
 
 	// Render assistant message
 	components.RenderMessageHTML(w, components.ChatMessage{
@@ -237,15 +367,27 @@ func handleClear(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionID := getOrCreateSessionID(r)
+	// End the current session
+	sessionIDStr := getOrCreateSessionID(r)
+	if sessionService != nil && sessionIDStr != "" {
+		sessionID := uuid.MustParse(sessionIDStr)
+		if err := sessionService.EndSession(r.Context(), sessionID); err != nil {
+			log.Printf("Warning: failed to end session: %v", err)
+		}
+	}
 
-	// Clear session
-	sessions.mu.Lock()
-	delete(sessions.sessions, sessionID)
-	sessions.mu.Unlock()
-
-	// Re-render the main page with new session
+	// Generate new session ID
 	newSessionID := uuid.New().String()
+
+	// Update the cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session_id",
+		Value:    newSessionID,
+		Path:     "/",
+		MaxAge:   int(365 * 24 * time.Hour / time.Second),
+		SameSite: http.SameSiteLaxMode,
+	})
+
 	chatComponent := components.NewChat(components.ChatProps{
 		SessionID:     newSessionID,
 		Placeholder:   "Type your message or use voice input...",
@@ -270,20 +412,35 @@ func handleExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionID := getOrCreateSessionID(r)
-	session := getSession(sessionID)
+	sessionIDStr := getOrCreateSessionID(r)
+	var sessionID uuid.UUID
+	if sessionIDStr != "" {
+		sessionID = uuid.MustParse(sessionIDStr)
+	}
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.Header().Set("Content-Disposition", "attachment; filename=conversation.txt")
 	w.Write([]byte("Learning Desktop Conversation Export\n\n"))
-	w.Write([]byte(fmt.Sprintf("Session ID: %s\n", sessionID)))
+	w.Write([]byte(fmt.Sprintf("Session ID: %s\n", sessionIDStr)))
 	w.Write([]byte(fmt.Sprintf("Date: %s\n", time.Now().Format(time.RFC3339))))
-	w.Write([]byte(fmt.Sprintf("Messages: %d\n", len(session.Messages))))
-	w.Write([]byte("\n---\n\n"))
 
-	for i, msg := range session.Messages {
-		w.Write([]byte(fmt.Sprintf("[%d] %s:\n%s\n\n", i+1, msg.Role, msg.Content)))
+	if sessionService != nil {
+		messages, err := sessionService.GetMessages(r.Context(), sessionID, 1000)
+		if err == nil {
+			w.Write([]byte(fmt.Sprintf("Messages: %d\n", len(messages))))
+			w.Write([]byte("\n---\n\n"))
+
+			for i, msg := range messages {
+				w.Write([]byte(fmt.Sprintf("[%d] %s:\n%s\n\n", i+1, msg.Role, msg.Content)))
+			}
+			return
+		}
 	}
+
+	// Fallback if no session service
+	w.Write([]byte("Messages: 0\n"))
+	w.Write([]byte("\n---\n\n"))
+	w.Write([]byte("(No messages available - session service not running)\n"))
 }
 
 // handleSSE provides Server-Sent Events for real-time updates
@@ -325,47 +482,6 @@ func getOrCreateSessionID(r *http.Request) string {
 	if cookie, err := r.Cookie("session_id"); err == nil && cookie.Value != "" {
 		return cookie.Value
 	}
-	return uuid.New().String()
-}
-
-// getOrCreateSession gets an existing session or creates a new one
-func getOrCreateSession(id string) *chatSession {
-	sessions.mu.RLock()
-	session, exists := sessions.sessions[id]
-	sessions.mu.RUnlock()
-
-	if exists {
-		session.UpdatedAt = time.Now()
-		return session
-	}
-
-	sessions.mu.Lock()
-	defer sessions.mu.Unlock()
-
-	// Check again in case another goroutine created it
-	if session, exists := sessions.sessions[id]; exists {
-		return session
-	}
-
-	session = &chatSession{
-		ID:        id,
-		Messages:  make([]providers.Message, 0),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
-	sessions.sessions[id] = session
-	return session
-}
-
-// getSession retrieves an existing session
-func getSession(id string) *chatSession {
-	sessions.mu.RLock()
-	defer sessions.mu.RUnlock()
-	if session, exists := sessions.sessions[id]; exists {
-		return session
-	}
-	return &chatSession{
-		ID:       id,
-		Messages: make([]providers.Message, 0),
-	}
+	// Return empty string - handler will generate new ID
+	return ""
 }
